@@ -6,23 +6,30 @@ import gravatar from "gravatar";
 import HttpStatusCodes from "http-status-codes";
 import jwt from "jsonwebtoken";
 
+import { UserService } from '../../services/user.service';
 import Payload from "../../types/Payload";
 import Request from "../../types/Request";
 import User, { IUser } from "../../models/User";
+import { multerOptionsRegistration } from '../../middleware/multer.middleware';
+
 
 const router: Router = Router();
-
+const serService = new UserService(User)
 // @route   POST api/user
 // @desc    Register user given their email and password, returns the token upon successful registration
 // @access  Public
 router.post(
-  "/",
+  "/register",
   [
     check("email", "Please include a valid email").isEmail(),
     check(
       "password",
       "Please enter a password with 6 or more characters"
-    ).isLength({ min: 6 })
+    ).isLength({ min: 6 }),
+    check(
+      "name",
+      "Please enter a name with 4 or more characters"
+    ).isLength({ min: 4 }),
   ],
   async (req: Request, res: Response) => {
     const errors = validationResult(req);
@@ -31,9 +38,11 @@ router.post(
         .status(HttpStatusCodes.BAD_REQUEST)
         .json({ errors: errors.array() });
     }
+    
 
     const { email, password } = req.body;
     try {
+      
       let user: IUser = await User.findOne({ email });
 
       if (user) {
@@ -54,19 +63,16 @@ router.post(
 
       const avatar = gravatar.url(email, options);
 
-      const salt = await bcrypt.genSalt(10);
-      const hashed = await bcrypt.hash(password, salt);
-
       // Build user object based on IUser
       const userFields = {
         email,
-        password: hashed,
+        password: password,
         avatar
       };
 
       user = new User(userFields);
-
-      await user.save();
+      await serService.createUser(user)
+      // await user.save();
 
       const payload: Payload = {
         userId: user.id
